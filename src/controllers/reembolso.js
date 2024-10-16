@@ -6,7 +6,7 @@ const { getPuntBonus,
 
 const getBonusInfo = (req, res) => {
     const { id } = req.params;
-    const foundColab = getPuntBonus(parseInt(id,10));
+    const foundColab = getPuntBonus(id);
     
     if(foundColab){
         res.status(200),
@@ -18,7 +18,7 @@ const getBonusInfo = (req, res) => {
 
 const getAssistenceInfo = (req, res) => {
     const { id } = req.params;
-    const foundColab = getAssistence(parseInt(id, 10));
+    const foundColab = getAssistence(id);
 
     if(foundColab){
         res.status(200),
@@ -30,8 +30,7 @@ const getAssistenceInfo = (req, res) => {
 
 const getIncidenceInfo = (req, res) => {
     const { id } = req.params;
-    const foundColab = getIncidence(parseInt(id, 10));
-
+    const foundColab = getIncidence(id);
     if(foundColab){
         res.status(200),
         res.json(foundColab);

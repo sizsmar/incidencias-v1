@@ -1,6 +1,7 @@
 const res = require("express/lib/response");
 const { getAllInfoBiometrico } = require("../services/biometrico");
-const { getAllInfoIncidence} = require("../services/reembolso");
+const { getAllInfoIncidence } = require("../services/reembolso");
+const { weekdays } = require("moment");
 
 function getWeekNumber(){
     const currentDate = new Date();
@@ -30,46 +31,26 @@ function getWeekDays(week, year){
     return daysOfTheWeek;
 }
 
-//Consulta en la BD del biometrico revisando los días que se tiene registrados
-function recuperarDiasRegistrados(id, numeroSemana){
+function busquedaBiometrico(id, numeroSemana){
     let year = new Date().getFullYear();
-
-    let minutoRetraso = 0;
-    let foundColabRetardo = null;
-    let foundcolabFalta = [];
-    let cont = 0;
-    let contRetardos = 0;
-
-    //const semanaConsultada = getWeekNumber()-1;
-    //const currentWeek = getWeekDays(getWeekNumber(),year);
-    const pastWeek = getWeekDays(numeroSemana,year);
-    const moment = require('moment');
-
-    //console.log(`Semana ${getWeekNumber()}: ${currentWeek}`);
-    console.log(`Semana ${numeroSemana}: ${pastWeek}`);
-    for(let i = 0;i<7;i++){
-        const auxColab = getAllInfoBiometrico().find(colaborador => colaborador["EmpleadoID"] === id && colaborador["Fecha"] === pastWeek[i]);
-        if (auxColab){
-            const horarioAsignado = auxColab.HorarioAsignado;
-            const horaEntrada = auxColab.HoraEntrada;
-
-            const horario = moment(horarioAsignado, 'HH:mm:ss');
-            const entrada = moment(horaEntrada, 'HH:mm:ss');
-            
-            const diferencia = horario.diff(entrada, 'minutes');
-            console.log(diferencia);
-            if(diferencia < 0){
-                minutoRetraso = minutoRetraso + diferencia;
-                contRetardos++;
-                foundColabRetardo = foundColabRetardo.concat(auxColab);
-                console.log(foundColabRetardo);
-            }
-            foundcolabFalta = foundcolabFalta.concat(auxColab);
-            cont++;
-
+    const weekDays = getWeekDays(numeroSemana,year);
+    let result = [];
+    for(let i=0;i<weekDays.length;i++){
+        const found = getAllInfoBiometrico().find(colaborador => colaborador["EmpleadoID"] === id && colaborador["Fecha"] === weekDays[i]);
+        if(found){
+            result.push(found);
         }
     }
-    return { foundColabRetardo };
+    //console.log(result);
+    return {"Semana": numeroSemana, registros: result};
+}
+//Consulta en la BD del biometrico revisando los días que se tiene registrados
+function recuperarDiasRegistrados(id, numeroSemana){
+    let arrayRegistrosColab = [];
+    for(let i = numeroSemana-5;i<numeroSemana;i++){
+        arrayRegistrosColab =  arrayRegistrosColab.concat(busquedaBiometrico(id, i)); //recupera todos los registros de la semana i, i = numeroSemana
+    }
+    return { arrayRegistrosColab };
 }
 
 function trasnfomracionDatos(foundColab){
@@ -88,24 +69,31 @@ function trasnfomracionDatos(foundColab){
     return foundColabFinal;
 }
 
+function calculateAssistence(id){
+    let year = new Date().getFullYear();
+    let semanaActual = getWeekNumber();
+    const result = recuperarDiasRegistrados(id, semanaActual); //Recupera los registros del colaborador clasificandolo por semana.
+
+    result.arrayRegistrosColab.forEach(semana => {
+        const weekDays = getWeekDays(semana.Semana, year); //Semana ideal
+        
+
+    });
+    return result;
+}
+
 function getAssistence(id){
     let falta = false;
+    const result = calculateAssistence(id);
 
-    const result = recuperarDiasRegistrados(id); //Recupera la información de registros del colaborador
-    const { foundColabFalta } = result; //Json
-
-    foundColabFinal = trasnfomracionDatos(foundColabFalta);
-    if(foundColabFinal == []){
-        return foundColabFinal;
-    }
-    foundColabFinal = foundColabFinal.concat([{"falta":falta}]);
-
-    return foundColabFinal;
+    return result;
 }
 
 function getPuntBonus(id){
     let bonoPuntualidad = true;
-
+    let semanaActual = getWeekNumber();
+    recuperarDiasRegistrados(id, semanaActual);
+    /*
     const result = recuperarDiasRegistrados(id); //Recupera la información de registros del colaborador
     const { foundColabRetardo } = result; //Json
     const { minutoRetraso } = result; //Suma de minutos de retraso
@@ -126,31 +114,18 @@ function getPuntBonus(id){
     console.log(`Minutos con retraso mental: ${minutoRetraso}`);
     console.log(`Dias registrados con retardo: ${contRetardos}`);
     console.log(`Dias registrados: ${cont}`);
-    return foundColabFinal;
+    */
+    return {"data": 1};
 }
 
 function getIncidence(id){
     year = new Date().getFullYear();
 
     let semanaActual = getWeekNumber();
-    let registroBiometrico = [];
+    const result = getAllInfoIncidence().find(colaborador => colaborador["ID"] === id);
+    console.log("Resultado: ", result);
 
-    /*
-    for(let i = semanaActual - 5; i<=semanaActual;i++){
-        result = recuperarDiasRegistrados(id, i);
-        registroBiometrico[i] = result;
-        console.log(`Seamana recuperada: ${registroBiometrico[i]}`);
-    }
-    */
-    const auxColab = getAllInfoIncidence().find(colaborador => colaborador["ID"] === id);
-    //const result = recuperarDiasRegistrados(id);
-
-    //const { semanaConsultada } = result;
-
-    console.log(`Semana actual: ${semanaActual}`);
-    console.log(`Registro incidencias: ${auxColab}`);
-
-    return auxColab;
+    return {result};
 }
 
 module.exports = { getWeekNumber, getPuntBonus, getAssistence, getIncidence};
