@@ -42,7 +42,7 @@ function busquedaBiometrico(id, numeroSemana){
         }
     }
     //console.log(result);
-    return {"Semana": numeroSemana, registros: result};
+    return {"semana": numeroSemana, registros: result};
 }
 //Consulta en la BD del biometrico revisando los días que se tiene registrados
 function recuperarDiasRegistrados(id, numeroSemana){
@@ -53,79 +53,128 @@ function recuperarDiasRegistrados(id, numeroSemana){
     return { arrayRegistrosColab };
 }
 
-function trasnfomracionDatos(foundColab){
-    if (!Array.isArray(foundColab)){
-        console.error("El valor recuperado no es un array [transformacionDatos]: ", foundColab);
-        return [];
-    }
-    const foundColabFinal = foundColab.map(({ EmpleadoID, Nombre, Fecha, HorarioAsignado, HoraEntrada}) => ({
-        EmpleadoID,
-        Nombre, 
-        Fecha, 
-        HorarioAsignado, 
-        HoraEntrada
-    }));
-
-    return foundColabFinal;
-}
-
 function calculateAssistence(id){
     let year = new Date().getFullYear();
     let semanaActual = getWeekNumber();
     const result = recuperarDiasRegistrados(id, semanaActual); //Recupera los registros del colaborador clasificandolo por semana.
-
+    const arrayFaltas = {
+        "data": []
+    }
     result.arrayRegistrosColab.forEach(semana => {
-        const weekDays = getWeekDays(semana.Semana, year); //Semana ideal
-        
+        const weekDays = getWeekDays(semana.semana, year); //Semana ideal
+        const registros = semana.registros || [];
 
+        const semanaFaltas = {
+            "semana": semana.semana,
+            "falta" : false,
+            "registros": []
+        };
+     
+        for(let i = 0 ; i < weekDays.length - 1; i++){                                          // Se compara la semana ideal de Lunes a Sabado con la semana registrada del colaborador
+            const found = registros.find(colaborador => colaborador["Fecha"] === weekDays[i]);
+            if(!found){                                                                         // En caso de no encontrar coincidencia en un día, se registra como falta
+                semanaFaltas.registros.push(weekDays[i]);
+            }
+        }
+        
+        if(semanaFaltas.registros.length > 0){      //Si campo 'Registros' del objeto semanaFaltas no esta vacio, se agrega a arrayFaltas
+            semanaFaltas.falta = true;
+            arrayFaltas.data.push(semanaFaltas);
+        }else arrayFaltas.data.push(semanaFaltas);
     });
-    return result;
+    return arrayFaltas;
+}
+
+function calculatePuntBonus(id){
+    const registrosRetardos = {
+        "data": []
+    }
+
+    let aux = 0;
+    let year = new Date().getFullYear();
+    let semanaActual = getWeekNumber();
+    
+    const result = recuperarDiasRegistrados(id, semanaActual); //Recupera los registros del colaborador clasificandolo por semana.
+    
+    result.arrayRegistrosColab.forEach(semana => {
+        const semanaFaltas = {
+            "semana": semana.semana,                // Se le asigna el valor de la semana del calculo
+            "retardo": false,
+            "sumaDeMinutos": 0,
+            "registros": []
+        };
+        
+        const registros = semana.registros || [];
+        
+        for(let i = 0 ; i < registros.length ;i++){
+            let diferenciaMinutos = calcularDiferenciaHorarios(registros[i].HorarioAsignado, registros[i].HoraEntrada);
+            if(diferenciaMinutos<0){
+                semanaFaltas.sumaDeMinutos += diferenciaMinutos;
+                if(Math.abs(semanaFaltas.sumaDeMinutos) >= 10) semanaFaltas.retardo = true;
+                diferenciaMinutos = registros[i].Fecha + ":"  + diferenciaMinutos;
+                semanaFaltas.registros.push(diferenciaMinutos);
+            }
+        }
+        registrosRetardos.data.push(semanaFaltas);
+        aux++;
+    });
+    return registrosRetardos;
+}
+
+function calcularDiferenciaHorarios(horarioAsignado, horarioEntrada){
+    function convertirHorasMinutos(hora){
+        const partes = hora.split(':');
+        const horas = parseInt(partes[0], 10) * 60;
+        const minutos = parseInt(partes[1], 10);
+        
+        return horas + minutos;
+    }
+    
+    const minutosHorarioAsignado = convertirHorasMinutos(horarioAsignado);
+    const minutosHoraEntrada = convertirHorasMinutos(horarioEntrada);
+
+    const diferenciaMinutos = minutosHorarioAsignado - minutosHoraEntrada;
+
+    return diferenciaMinutos;
+}
+
+function calculateIncidence(id){
+    const result = getAllInfoIncidence().find(colaborador => colaborador["ID"] === id);
+
+    const incidencias = {
+        "incidencia": false,
+        "data": []
+    }
+
+    if(result){
+        incidencias.incidencia = true;
+        incidencias.data.push(result);
+    }
+    return {result};
 }
 
 function getAssistence(id){
-    let falta = false;
-    const result = calculateAssistence(id);
-
+    let result = null;
+    if(getAllInfoBiometrico().find(colaboardor => colaboardor["EmpleadoID"] === id)){
+        result = calculateAssistence(id);
+    }
     return result;
 }
 
 function getPuntBonus(id){
-    let bonoPuntualidad = true;
-    let semanaActual = getWeekNumber();
-    recuperarDiasRegistrados(id, semanaActual);
-    /*
-    const result = recuperarDiasRegistrados(id); //Recupera la información de registros del colaborador
-    const { foundColabRetardo } = result; //Json
-    const { minutoRetraso } = result; //Suma de minutos de retraso
-    const { cont } = result; //Numero de dias registrados
-    const { contRetardos } = result; //Numero de dias registrados con retardo
-    const { semanaConsultada } = result; //Semana consultada
-
-    //Verifica si los minutos acumulados superan los 10 minutos
-    if(minutoRetraso < -10 && cont != 6){
-        bonoPuntualidad = false; //Si lo supera o los dias registrados no son 6 el bono de puntualidad no se aplica
+    let result = null;
+    if(getAllInfoBiometrico().find(colaboardor => colaboardor["EmpleadoID"] === id)){
+        result = calculatePuntBonus(id);
     }
-
-    //Recupera solo los datos que necesitamos
-    foundColabFinal = trasnfomracionDatos(foundColabRetardo);
-    foundColabFinal = foundColabFinal.concat([{"bonoPuntualidad": bonoPuntualidad, "Semana consultada": semanaConsultada, "Dias registrados con retardo":contRetardos, "Minutos de retardo acumulado": minutoRetraso}]);
-
-    console.log(bonoPuntualidad);
-    console.log(`Minutos con retraso mental: ${minutoRetraso}`);
-    console.log(`Dias registrados con retardo: ${contRetardos}`);
-    console.log(`Dias registrados: ${cont}`);
-    */
-    return {"data": 1};
+    return result;
 }
 
 function getIncidence(id){
-    year = new Date().getFullYear();
-
-    let semanaActual = getWeekNumber();
-    const result = getAllInfoIncidence().find(colaborador => colaborador["ID"] === id);
-    console.log("Resultado: ", result);
-
-    return {result};
+    let result = null;
+    if(getAllInfoIncidence().find(colaboardor => colaboardor["ID"] === id)){
+        result = calculateIncidence(id);
+    }
+    return result;
 }
 
 module.exports = { getWeekNumber, getPuntBonus, getAssistence, getIncidence};

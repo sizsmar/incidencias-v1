@@ -1,4 +1,3 @@
-const { getAllInfo } = require("../services/reembolso");
 const { getPuntBonus,
         getAssistence,
         getIncidence
@@ -7,7 +6,6 @@ const { getPuntBonus,
 const getBonusInfo = (req, res) => {
     const { id } = req.params;
     const foundColab = getPuntBonus(id);
-    
     if(foundColab){
         res.status(200),
         res.json(foundColab);
@@ -35,7 +33,7 @@ const getIncidenceInfo = (req, res) => {
         res.status(200),
         res.json(foundColab);
     }else{
-        res.satus(400).json({"error": "Colaborador no encontrado"});
+        res.status(400).json({"error": "Colaborador no encontrado"});
     }
 }
 
